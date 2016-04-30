@@ -1,0 +1,20 @@
+function MainWindow()
+  t = importOrders()
+  win = @Window("test", 1920, 1080)
+  (sells, buys) = groupby(t, :bid)
+  listViewSells = DataFrameView(sells)
+  listViewBuys = DataFrameView(buys)
+  f = @Frame("orders")
+  panes = @Paned(true)
+  panes[1] = listViewSells
+  panes[2] = listViewBuys
+  push!(f, panes)
+  juliaEval = @Window("Julia")
+  evalDummy = @Frame()
+  Gtk.GAccessor.attached_to(juliaEval, evalDummy)
+  tabs = @Notebook()
+  push!(tabs, f, "Orders")
+  push!(tabs, evalDummy, "Julia")
+  push!(win, tabs)
+  showall(win)
+end
