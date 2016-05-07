@@ -16,10 +16,10 @@ type MarginDataView <: Grid
     push!(self, self.MaxBuy)
     push!(self, self.MinSell)
     push!(self, self.Margin)
-
+    self
   end
 end
-function UpdateMarginDataView(view, data :: eve.ItemSummery)
+function UpdateMarginDataView(view, data :: ItemSummery)
   setproperty!(view.ItemName, "label", string(data.itemID))
   setproperty!(view.MaxBuy, "label", data.maxbuy)
   setproperty!(view.MinSell, "label", data.minsell)
