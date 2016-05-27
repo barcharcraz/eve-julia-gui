@@ -24,7 +24,7 @@ type GtkTreeModelIface
 end
 type GtkTreeIterImpl
   stamp :: Cint
-  user1 :: Ptr{Void}
-  user2 :: Ptr{Void}
-  user3 :: Ptr{Void}
+  user1 :: UInt64
+  user2 :: UInt64
+  user3 :: UInt64
 end

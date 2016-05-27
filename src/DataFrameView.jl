@@ -10,6 +10,6 @@ type DataFrameView <: TreeView
     for i in eachindex(names(df))
       push!(view, @TreeViewColumn(string(names(df)[i]), renderer, Dict("text"=>i-1)))
     end
-    Gtk.gobject_move_ref(new(view.handle, df, store), view)
+    Gtk.gobject_move_ref(new(view.handle, store), view)
   end
 end

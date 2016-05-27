@@ -6,6 +6,7 @@
 /usr
 /usr-staging
 /Make.user
+/bin
 /julia-*
 /source-dist.tmp
 /source-dist.tmp1

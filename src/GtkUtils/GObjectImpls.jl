@@ -11,7 +11,7 @@ immutable GTypeInfo
   n_preallocs :: UInt16
   instance_init :: Ptr{Void}
 
-  #value_table :: Ptr{Void}
+  value_table :: Ptr{Void}
 end
 
 immutable GInterfaceInfo
@@ -85,5 +85,6 @@ function g_type_add_interface_static(instance_type :: Gtk.GLib.GType, interface_
         instance_type, interface_type, info)
 end
 function g_object_new(typ :: Gtk.GLib.GType)
-  ccall((:g_object_new, Gtk.libgobject), GObject, (Gtk.GLib.GType, Ptr{Void}), typ, C_NULL)
+  hnd = ccall((:g_object_new, Gtk.libgobject), Ptr{GObject}, (Gtk.GLib.GType, Ptr{Void}), typ, C_NULL)
+  Gtk.GLib.wrap_gobject(hnd)
 end

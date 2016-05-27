@@ -8,13 +8,18 @@ type DataFrameStoreClassImpl
 end
 type DataFrameStore <: Gtk.GLib.GObject
   handle :: Ptr{DataFrameStoreImpl}
+  #handle :: Ptr{GObject}
   stamp :: Int32
   df :: AbstractDataFrame
   function DataFrameStore()
     obj = g_object_new(DataFrameStoreGetType())
-    self = Gtk.gobject_move_ref(new(obj), obj)
+    n = new(obj.handle)
+    println(n.handle)
+    println(obj.handle)
+    self = Gtk.gobject_move_ref(n, obj)
     dat = unsafe_load(self.handle)
     dat.private = pointer_from_objref(self)
+    unsafe_store!(self.handle, dat)
     self.stamp = rand(Int32)
     self.df = DataFrame()
     self
@@ -32,14 +37,14 @@ function DataFrameStoreTreeModelInit(iface :: Ptr{GtkTreeModelIface})
   i.get_n_columns = cfunction(DataFrameStoreGetNColumns, Cint, (Ptr{DataFrameStoreImpl},))
   i.get_column_type = cfunction(DataFrameStoreGetColumnType, Gtk.GLib.GType, (Ptr{DataFrameStoreImpl}, Cint))
   i.get_iter = cfunction(DataFrameStoreGetIter, Cint, (Ptr{DataFrameStoreImpl}, Ptr{GtkTreeIterImpl}, GtkTreePath))
-  i.get_path = cfunction(DataFrameStoreGetPath, GtkTreePath, (Ptr{DataFrameStoreImpl}, Ptr{GtkTreeIterImpl}))
+  i.get_path = cfunction(DataFrameStoreGetPath, Ptr{GtkTreeView}, (Ptr{DataFrameStoreImpl}, Ptr{GtkTreeIterImpl}))
   i.get_value = cfunction(DataFrameStoreGetValue, Void, (Ptr{DataFrameStoreImpl}, Ptr{GtkTreeIterImpl}, Cint, Ptr{Gtk.GLib.GValue}))
   i.iter_next = cfunction(DataFrameStoreIterNext, Cint, (Ptr{DataFrameStoreImpl}, Ptr{GtkTreeIterImpl}))
   i.iter_previous = cfunction(DataFrameStoreIterPrev, Cint, (Ptr{DataFrameStoreImpl}, Ptr{GtkTreeIterImpl}))
   i.iter_children = cfunction(DataFrameStoreIterChildren, Cint, (Ptr{DataFrameStoreImpl}, Ptr{GtkTreeIterImpl}, Ptr{GtkTreeIterImpl}))
   i.iter_has_child = cfunction(DataFrameStoreIterHasChild, Cint, (Ptr{DataFrameStoreImpl}, Ptr{GtkTreeIterImpl}))
   i.iter_n_children = cfunction(DataFrameStoreIterNChildren, Cint, (Ptr{DataFrameStoreImpl}, Ptr{GtkTreeIterImpl}))
-  i.iter_nth_child = cfunction(DataFrameStoreIterNthChild, Cint, (Ptr{DataFrameStoreImpl}, Ptr{GtkTreeIterImpl}, Ptr{GtkTreeIterImpl}))
+  i.iter_nth_child = cfunction(DataFrameStoreIterNthChild, Cint, (Ptr{DataFrameStoreImpl}, Ptr{GtkTreeIterImpl}, Ptr{GtkTreeIterImpl}, Cint))
   i.iter_parent = cfunction(DataFrameStoreIterParent, Cint, (Ptr{DataFrameStoreImpl}, Ptr{GtkTreeIterImpl}, Ptr{GtkTreeIterImpl}))
   unsafe_store!(iface, i)
   return
@@ -47,7 +52,7 @@ end
 DataFrameStoreType = g_type_from_name(:DataFrameStore) :: Gtk.GLib.GType
 function DataFrameStoreGetType()
   #global DataFrameStoreType:: Gtk.GLib.GType
-  global DataFrameStoreType
+  global DataFrameStoreType :: Gtk.GLib.GType
   if DataFrameStoreType == 0
     info = GTypeInfo(
       UInt16(sizeof(DataFrameStoreClassImpl)),
@@ -58,6 +63,7 @@ function DataFrameStoreGetType()
       C_NULL,
       UInt16(sizeof(DataFrameStoreImpl)),
       UInt16(0),
+      C_NULL,
       C_NULL
     )
     ifaceInfo = GInterfaceInfo(
@@ -76,21 +82,23 @@ function DataFrameStoreGetFlags(tree_model :: Ptr{DataFrameStoreImpl})
   Cint(3)
 end
 function DataFrameStoreGetNColumns(tree_model :: Ptr{DataFrameStoreImpl})
+  println(tree_model)
+  println(unsafe_load(tree_model))
   self = unsafe_pointer_to_objref(unsafe_load(tree_model).private)
   Cint(length(self.df))
 end
 function DataFrameStoreGetColumnType(tree_model :: Ptr{DataFrameStoreImpl}, index :: Cint)
   self = unsafe_pointer_to_objref(unsafe_load(tree_model).private)
-  typ = elttypes(self.df)[index+1]
+  typ = eltypes(self.df)[index+1]
   JuliaTypeToGType(typ)
 
 end
 
 function DataFrameStoreGetIter(tree_model :: Ptr{DataFrameStoreImpl}, iter :: Ptr{GtkTreeIterImpl}, path :: GtkTreePath)
-  index = GAccessor.indices(path)[0]
+  index = unsafe_load(GAccessor.indices(path))
   self = unsafe_pointer_to_objref(unsafe_load(tree_model).private)
   it = unsafe_load(iter)
-  (rows, cols) = size
+  (rows, cols) = size(self.df)
   if index > length(self.df)
     it.stamp = 0
     unsafe_store!(iter, it)
@@ -106,15 +114,16 @@ end
 function DataFrameStoreGetPath(tree_model :: Ptr{DataFrameStoreImpl}, iter :: Ptr{GtkTreeIterImpl})
   self = unsafe_pointer_to_objref(unsafe_load(tree_model).private)
   it = unsafe_load(iter)
+  ret :: Ptr{GtkTreeView} = C_NULL
   (rows, cols) = size(self.df)
   if it.stamp != self.stamp
-    return C_NULL
+    return ret
   elseif it.user1 > rows
-    return C_NULL
+    return ret
   end
-  path = ccall((:gtk_tree_path_new, Gtk.libgtk), GtkTreePath, ())
-  ccall((:gtk_tree_path_append_index, Gtk.libgtk), Void, (GtkTreePath, Cint), path, Cint(it.user1))
-  path
+  ret = ccall((:gtk_tree_path_new, Gtk.libgtk), Ptr{GtkTreePath}, ())
+  ccall((:gtk_tree_path_append_index, Gtk.libgtk), Void, (GtkTreePath, Cint), ret, Cint(it.user1))
+  return ret
 end
 
 function DataFrameStoreGetValue(tree_model :: Ptr{DataFrameStoreImpl}, iter :: Ptr{GtkTreeIterImpl}, col :: Cint, value :: Ptr{Gtk.GLib.GValue})
@@ -131,6 +140,7 @@ function DataFrameStoreGetValue(tree_model :: Ptr{DataFrameStoreImpl}, iter :: P
   item = self.df[row, col+1]
   gv = gvalue(item)
   unsafe_store!(value, gv)
+  return
 end
 
 function DataFrameStoreIterNext(tree_model :: Ptr{DataFrameStoreImpl}, iter :: Ptr{GtkTreeIterImpl})
